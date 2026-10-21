@@ -19,6 +19,7 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  Browsers,
 } = require('baileys');
 
 const config    = require('./config');
@@ -233,7 +234,7 @@ async function _connectSocket(bot) {
     auth: state,
     logger,
     printQRInTerminal: false,
-    browser: ['ɴᴇxᴜs ᴄʀᴀsʜᴇʀ', 'Chrome', '120.0.0'],
+    browser: Browsers.ubuntu('Chrome'),
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 0,
     keepAliveIntervalMs: 25000,
@@ -264,41 +265,23 @@ async function _connectSocket(bot) {
         bot.qrResolve = null;
       }
 
-      // If someone is waiting for a pairing code, request it now
-      // This is the correct timing: QR generation means WS is connected to WA
+      // ── Pairing code request ─────────────────────────────────────────────
+      // This is the timing Baileys' own docs use: request the code once the
+      // socket has reached the 'qr' stage (WS handshake done), guarded so it
+      // only ever fires once per socket — requesting it twice invalidates
+      // the first code, which is what made the codes look "wrong".
       if (bot.pairCodeResolve && !bot.pairCodeRequested && !state.creds?.registered) {
         bot.pairCodeRequested = true;
         try {
           const code = await sock.requestPairingCode(bot.phone);
           _log(`✅ Pairing code for ${maskPhone(bot.phone)}: ${code}`);
-          bot.pairCodeResolve(code);
+          if (bot.pairCodeResolve) bot.pairCodeResolve(code);
         } catch (e) {
           _log(`❌ Pairing code failed for ${maskPhone(bot.phone)}:`, e.message);
           if (bot.pairCodeReject) bot.pairCodeReject(e);
         }
         bot.pairCodeResolve = null;
         bot.pairCodeReject = null;
-      }
-    }
-
-    // ── Also try on 'connecting' state ───────────────────────────────────────
-    if (connection === 'connecting') {
-      if (bot.pairCodeResolve && !bot.pairCodeRequested && !state.creds?.registered) {
-        // Wait a moment for WS to fully establish
-        setTimeout(async () => {
-          if (bot.pairCodeRequested || !bot.pairCodeResolve) return;
-          bot.pairCodeRequested = true;
-          try {
-            const code = await sock.requestPairingCode(bot.phone);
-            _log(`✅ Pairing code for ${maskPhone(bot.phone)}: ${code}`);
-            if (bot.pairCodeResolve) bot.pairCodeResolve(code);
-          } catch (e) {
-            _log(`❌ Pairing code failed for ${maskPhone(bot.phone)}:`, e.message);
-            if (bot.pairCodeReject) bot.pairCodeReject(e);
-          }
-          bot.pairCodeResolve = null;
-          bot.pairCodeReject = null;
-        }, 5000);
       }
     }
 
