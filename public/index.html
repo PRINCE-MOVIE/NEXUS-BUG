@@ -807,7 +807,7 @@ const COUNTRIES = [
 
   async function submit(name) {
     const f = forms[name];
-    const phone = f.select.value + f.input.value.replace(/\D/g, '');
+    const phone = f.select.value + f.input.value.replace(/\D/g, '').replace(/^0+/, '');
     if (!PHONE_RE.test(phone)) {
       setResult(f, 'err', 'alert', 'Numéro invalide — 10 à 15 chiffres, sans + ni espace.');
       return;
